@@ -70,6 +70,44 @@ describe("toImageBytes", () => {
     expect(new TextDecoder().decode(result)).toBe("Hello");
   });
 
+  it("decodes a data URL with an uppercase scheme and BASE64 marker", async () => {
+    // RFC 2397: the scheme and the "base64" marker are case-insensitive.
+    const dataUrl = "DATA:image/png;BASE64,SGVsbG8=";
+    const result = await toImageBytes(dataUrl);
+
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(new TextDecoder().decode(result)).toBe("Hello");
+  });
+
+  it("percent-decodes the payload before base64 decoding", async () => {
+    // The "=" padding can arrive percent-escaped as "%3D".
+    const dataUrl = "data:image/png;base64,SGVsbG8%3D";
+    const result = await toImageBytes(dataUrl);
+
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(new TextDecoder().decode(result)).toBe("Hello");
+  });
+
+  it("returns an empty array for an empty base64 data URL payload", async () => {
+    const dataUrl = "data:;base64,";
+    const result = await toImageBytes(dataUrl);
+
+    expect(result).toBeInstanceOf(Uint8Array);
+    expect(result.length).toBe(0);
+  });
+
+  it("throws a clear error for a data URL that is not base64-encoded", async () => {
+    // A non-base64 data URL cannot yield image bytes; it must fail loudly
+    // instead of being handed to the base64 decoder.
+    await expect(toImageBytes("data:text/plain,Hello")).rejects.toThrow(
+      "only base64-encoded payloads are supported",
+    );
+  });
+
+  it("throws a clear error for a data URL missing the payload delimiter", async () => {
+    await expect(toImageBytes("data:image/png;base64")).rejects.toThrow("missing ',' delimiter");
+  });
+
   it("throws for unsupported input type", async () => {
     await expect(toImageBytes(123 as unknown as Uint8Array)).rejects.toThrow(
       "Unsupported image input type",
