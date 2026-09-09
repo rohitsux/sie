@@ -88,12 +88,10 @@ describe("toImageBytes", () => {
     expect(new TextDecoder().decode(result)).toBe("Hello");
   });
 
-  it("returns an empty array for an empty base64 data URL payload", async () => {
-    const dataUrl = "data:;base64,";
-    const result = await toImageBytes(dataUrl);
-
-    expect(result).toBeInstanceOf(Uint8Array);
-    expect(result.length).toBe(0);
+  it("throws a clear error for an empty base64 data URL payload", async () => {
+    // A zero-byte payload would otherwise produce an empty image that only fails
+    // deep in the server; it must fail loudly at the SDK boundary instead.
+    await expect(toImageBytes("data:;base64,")).rejects.toThrow("empty base64 payload");
   });
 
   it("throws a clear error for a data URL that is not base64-encoded", async () => {

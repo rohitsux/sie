@@ -99,12 +99,11 @@ export async function toImageBytes(input: ImageInput): Promise<Uint8Array> {
  * percent-decoded (so escaped characters such as `%3D` padding are restored)
  * before it reaches the base64 decoder.
  *
- * @returns the base64 payload (possibly empty), or `undefined` when `input` is
- *   not a `data:` URL at all — in which case the caller treats it as a raw
- *   base64 string.
- * @throws if `input` is a `data:` URL that is malformed (no payload delimiter
- *   or invalid percent-encoding) or is not base64-encoded, so such inputs fail
- *   loudly instead of silently corrupting in the base64 decoder.
+ * @returns the base64 payload, or `undefined` when `input` is not a `data:` URL
+ *   at all — in which case the caller treats it as a raw base64 string.
+ * @throws if `input` is a `data:` URL that is malformed (no payload delimiter,
+ *   an empty payload, or invalid percent-encoding) or is not base64-encoded, so
+ *   such inputs fail loudly instead of silently corrupting in the base64 decoder.
  */
 function parseBase64DataUrl(input: string): string | undefined {
   if (!/^data:/i.test(input)) {
@@ -127,11 +126,18 @@ function parseBase64DataUrl(input: string): string | undefined {
   }
 
   const payload = input.slice(comma + 1);
+  let decoded: string;
   try {
-    return decodeURIComponent(payload);
+    decoded = decodeURIComponent(payload);
   } catch {
     throw new Error("Malformed data URL: payload has invalid percent-encoding");
   }
+  if (decoded === "") {
+    // A zero-byte payload decodes to an empty image that only fails deep in the
+    // server, far from the mistake; reject it at the SDK boundary instead.
+    throw new Error("Malformed data URL: empty base64 payload");
+  }
+  return decoded;
 }
 
 /**
